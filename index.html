@@ -61,7 +61,7 @@
 
     #hint {
       position: fixed;
-      top: 30px;
+      top: 40px;
       left: 50%;
       transform: translateX(-50%);
       font-size: 11px;
@@ -157,10 +157,7 @@
       // 시작 각도
       rotY = -0.6;
 
-      // 힌트 표시 후 3초 뒤 사라짐
-      const hint = document.getElementById('hint');
-      hint.classList.add('show');
-      setTimeout(() => hint.classList.remove('show'), 3000);
+  
     },
     (xhr) => {
       // 진행률 — total이 0이면 펄스 애니메이션으로 대체
