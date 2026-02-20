@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>3D Viewer</title>
+  <title>내 손안의 마리짱</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -42,10 +42,21 @@
       background: #111;
       width: 0%;
       border-radius: 2px;
-      transition: width 0.2s;
+      transition: width 0.3s ease;
     }
 
-    #loading p { font-size: 12px; color: #aaa; letter-spacing: 0.1em; }
+    @keyframes pulse {
+      0%   { opacity: 1; }
+      50%  { opacity: 0.4; }
+      100% { opacity: 1; }
+    }
+
+    #loading p {
+      font-size: 12px;
+      color: #aaa;
+      letter-spacing: 0.1em;
+      animation: pulse 1.5s ease infinite;
+    }
 
     #hint {
       position: fixed;
@@ -124,6 +135,11 @@
   loader.load(
     './model/mari.glb',          // ← 파일 경로
     (gltf) => {
+      // 로딩바 100% 채우고 잠깐 후 숨김
+      document.getElementById('loading-bar').style.width = '100%';
+      setTimeout(() => {
+        document.getElementById('loading').style.display = 'none';
+      }, 300);
       const model = gltf.scene;
 
       // 바운딩 박스로 자동 크기/중심 맞춤
@@ -132,8 +148,8 @@
       const size   = box.getSize(new THREE.Vector3());
       const maxDim = Math.max(size.x, size.y, size.z);
 
-      model.position.sub(center);          // 중심 정렬
-      model.scale.setScalar(2.0 / maxDim); // 화면에 맞게 스케일
+      model.position.sub(center);               // 중심 정렬
+      model.scale.setScalar(2.0 / maxDim * 0.6); // 화면에 맞게 스케일 (60%)
 
       pivot.add(model);
 
@@ -141,19 +157,20 @@
       rotX = 0.15;
       rotY = 0.4;
 
-      // 로딩 화면 제거
-      document.getElementById('loading').style.display = 'none';
-
       // 힌트 표시 후 3초 뒤 사라짐
       const hint = document.getElementById('hint');
       hint.classList.add('show');
       setTimeout(() => hint.classList.remove('show'), 3000);
     },
     (xhr) => {
-      // 진행률
+      // 진행률 — total이 0이면 펄스 애니메이션으로 대체
       if (xhr.total > 0) {
         const pct = (xhr.loaded / xhr.total * 100).toFixed(0);
         document.getElementById('loading-bar').style.width = pct + '%';
+      } else {
+        // 파일 크기를 모를 때: 흐르는 애니메이션
+        document.getElementById('loading-bar').style.transition = 'none';
+        document.getElementById('loading-bar').style.width = '40%';
       }
     },
     (err) => {
