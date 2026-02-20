@@ -61,7 +61,7 @@
 
     #hint {
       position: fixed;
-      bottom: 36px;
+      top: 30px;
       left: 50%;
       transform: translateX(-50%);
       font-size: 11px;
@@ -98,7 +98,7 @@
 
   // ── Camera ──
   const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.01, 1000);
-  camera.position.set(0, 0, 3);
+  camera.position.set(0, 0, 4);
 
   // ── Renderer ──
   const renderer = new THREE.WebGLRenderer({ antialias: true });
