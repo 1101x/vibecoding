@@ -151,6 +151,7 @@
       const maxDim = Math.max(size.x, size.y, size.z);
 
       model.position.sub(center);          // 중심 정렬
+      model.position.y += 0.2;  // 숫자 올릴수록 위로
       model.scale.setScalar(1.4 / maxDim); // 화면에 맞게 스케일
 
       pivot.add(model);
