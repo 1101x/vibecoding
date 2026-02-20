@@ -149,13 +149,12 @@
       const size   = box.getSize(new THREE.Vector3());
       const maxDim = Math.max(size.x, size.y, size.z);
 
-      model.position.sub(center);               // 중심 정렬
-      model.scale.setScalar(2.0 / maxDim * 0.66); // 화면에 맞게 스케일 (66%)
+      model.position.sub(center);          // 중심 정렬
+      model.scale.setScalar(2.0 / maxDim); // 화면에 맞게 스케일
 
       pivot.add(model);
 
-      // 살짝 기울여서 시작
-      rotX = 0.15;
+      // 시작 각도
       rotY = 0.4;
 
       // 힌트 표시 후 3초 뒤 사라짐
