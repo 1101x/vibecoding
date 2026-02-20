@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>3D Viewer</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: #ffffff;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+
+    canvas { display: block; touch-action: none; }
+
+    #loading {
+      position: fixed;
+      inset: 0;
+      background: #fff;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      z-index: 100;
+    }
+
+    #loading-bar-wrap {
+      width: 200px;
+      height: 2px;
+      background: #eee;
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    #loading-bar {
+      height: 100%;
+      background: #111;
+      width: 0%;
+      border-radius: 2px;
+      transition: width 0.2s;
+    }
+
+    #loading p { font-size: 12px; color: #aaa; letter-spacing: 0.1em; }
+
+    #hint {
+      position: fixed;
+      bottom: 36px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 11px;
+      color: #bbb;
+      letter-spacing: 0.1em;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.8s;
+    }
+
+    #hint.show { opacity: 1; }
+  </style>
+</head>
+<body>
+
+<div id="loading">
+  <div id="loading-bar-wrap">
+    <div id="loading-bar"></div>
+  </div>
+  <p>LOADING</p>
+</div>
+
+<div id="hint">드래그하여 회전 &nbsp;·&nbsp; 핀치하여 확대</div>
+
+<!-- Three.js -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<!-- GLTFLoader -->
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+
+<script>
+  // ── Scene ──────────────────────────────────────────────────────────────────
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0xffffff);
+
+  // ── Camera ──
+  const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.01, 1000);
+  camera.position.set(0, 0, 3);
+
+  // ── Renderer ──
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.outputEncoding = THREE.sRGBEncoding;
+  renderer.physicallyCorrectLights = true;
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  document.body.appendChild(renderer.domElement);
+
+  // ── Lights ──
+  scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+
+  const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
+  dirLight.position.set(3, 6, 4);
+  dirLight.castShadow = true;
+  scene.add(dirLight);
+
+  const fillLight = new THREE.DirectionalLight(0xffffff, 0.4);
+  fillLight.position.set(-3, -2, -3);
+  scene.add(fillLight);
+
+  const rimLight = new THREE.DirectionalLight(0xffffff, 0.25);
+  rimLight.position.set(0, -4, -3);
+  scene.add(rimLight);
+
+  // ── Pivot (회전 그룹) ──
+  const pivot = new THREE.Group();
+  scene.add(pivot);
+
+  // ── GLB 로드 ─────────────────────────────────────────────────────────────
+  const loader = new THREE.GLTFLoader();
+
+  loader.load(
+    './model/mari.glb',          // ← 파일 경로
+    (gltf) => {
+      const model = gltf.scene;
+
+      // 바운딩 박스로 자동 크기/중심 맞춤
+      const box    = new THREE.Box3().setFromObject(model);
+      const center = box.getCenter(new THREE.Vector3());
+      const size   = box.getSize(new THREE.Vector3());
+      const maxDim = Math.max(size.x, size.y, size.z);
+
+      model.position.sub(center);          // 중심 정렬
+      model.scale.setScalar(2.0 / maxDim); // 화면에 맞게 스케일
+
+      pivot.add(model);
+
+      // 살짝 기울여서 시작
+      rotX = 0.15;
+      rotY = 0.4;
+
+      // 로딩 화면 제거
+      document.getElementById('loading').style.display = 'none';
+
+      // 힌트 표시 후 3초 뒤 사라짐
+      const hint = document.getElementById('hint');
+      hint.classList.add('show');
+      setTimeout(() => hint.classList.remove('show'), 3000);
+    },
+    (xhr) => {
+      // 진행률
+      if (xhr.total > 0) {
+        const pct = (xhr.loaded / xhr.total * 100).toFixed(0);
+        document.getElementById('loading-bar').style.width = pct + '%';
+      }
+    },
+    (err) => {
+      console.error('GLB 로드 실패:', err);
+      document.getElementById('loading').innerHTML =
+        '<p style="color:#e00;font-size:14px;">모델 로드 실패<br><small style="color:#aaa">콘솔을 확인해주세요</small></p>';
+    }
+  );
+
+  // ── 터치/마우스 회전 ───────────────────────────────────────────────────────
+  let isDragging = false;
+  let prevX = 0, prevY = 0;
+  let rotX = 0, rotY = 0;
+  let velX = 0, velY = 0;
+
+  // 핀치 줌
+  let prevPinchDist = null;
+  let currentScale  = 1;
+
+  const canvas = renderer.domElement;
+
+  // Mouse
+  canvas.addEventListener('mousedown', e => {
+    isDragging = true;
+    prevX = e.clientX; prevY = e.clientY;
+    velX = 0; velY = 0;
+  });
+  window.addEventListener('mousemove', e => {
+    if (!isDragging) return;
+    const dx = e.clientX - prevX;
+    const dy = e.clientY - prevY;
+    velX = dx; velY = dy;
+    rotY += dx * 0.005;
+    rotX += dy * 0.005;
+    rotX = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, rotX));
+    prevX = e.clientX; prevY = e.clientY;
+  });
+  window.addEventListener('mouseup', () => { isDragging = false; });
+
+  // Touch
+  canvas.addEventListener('touchstart', e => {
+    e.preventDefault();
+    if (e.touches.length === 1) {
+      isDragging = true;
+      prevX = e.touches[0].clientX;
+      prevY = e.touches[0].clientY;
+      velX = 0; velY = 0;
+    }
+    if (e.touches.length === 2) {
+      isDragging = false;
+      prevPinchDist = getPinchDist(e);
+    }
+  }, { passive: false });
+
+  canvas.addEventListener('touchmove', e => {
+    e.preventDefault();
+    if (e.touches.length === 1 && isDragging) {
+      const dx = e.touches[0].clientX - prevX;
+      const dy = e.touches[0].clientY - prevY;
+      velX = dx; velY = dy;
+      rotY += dx * 0.006;
+      rotX += dy * 0.006;
+      rotX = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, rotX));
+      prevX = e.touches[0].clientX;
+      prevY = e.touches[0].clientY;
+    }
+    if (e.touches.length === 2) {
+      const dist = getPinchDist(e);
+      if (prevPinchDist !== null) {
+        const delta = dist / prevPinchDist;
+        currentScale = Math.max(0.3, Math.min(5, currentScale * delta));
+        pivot.scale.setScalar(currentScale);
+      }
+      prevPinchDist = dist;
+    }
+  }, { passive: false });
+
+  canvas.addEventListener('touchend', e => {
+    if (e.touches.length < 2) prevPinchDist = null;
+    if (e.touches.length === 0) isDragging = false;
+  });
+
+  // 마우스 휠 줌
+  canvas.addEventListener('wheel', e => {
+    currentScale = Math.max(0.3, Math.min(5, currentScale - e.deltaY * 0.001));
+    pivot.scale.setScalar(currentScale);
+  });
+
+  function getPinchDist(e) {
+    const dx = e.touches[0].clientX - e.touches[1].clientX;
+    const dy = e.touches[0].clientY - e.touches[1].clientY;
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+
+  // ── 리사이즈 ──
+  window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  });
+
+  // ── 애니메이션 루프 ──
+  function animate() {
+    requestAnimationFrame(animate);
+
+    // 관성
+    if (!isDragging) {
+      velX *= 0.92;
+      velY *= 0.92;
+      rotY += velX * 0.003;
+      rotX += velY * 0.003;
+    }
+
+    pivot.rotation.x = rotX;
+    pivot.rotation.y = rotY;
+
+    renderer.render(scene, camera);
+  }
+  animate();
+</script>
+</body>
+</html>
