@@ -98,7 +98,7 @@
 
   // ── Camera ──
   const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.01, 1000);
-  camera.position.set(0, 0, 4);
+  camera.position.set(0, 0, 3);
 
   // ── Renderer ──
   const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -155,9 +155,14 @@
       pivot.add(model);
 
       // 시작 각도
-      rotY = -0.6;
+      rotY = -0.5;
 
-  
+     // 힌트 표시 후 3초 뒤 사라짐
+      const hint = document.getElementById('hint');
+      hint.classList.add('show');
+      //setTimeout(() => hint.classList.remove('show'), 3000);
+
+      
     },
     (xhr) => {
       // 진행률 — total이 0이면 펄스 애니메이션으로 대체
